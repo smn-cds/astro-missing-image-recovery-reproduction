@@ -1,0 +1,15 @@
+{
+  "name": "astro-missing-image-recovery-repro",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "repro": "node scripts/repro-missing-image-recovery.mjs"
+  },
+  "dependencies": {
+    "astro": "^6.0.8",
+    "sharp": "^0.34.4"
+  }
+}
