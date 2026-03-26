@@ -1,77 +1,64 @@
-# Astro Missing Image Recovery Repro
+# Astro Dev Server Does Not Restore Repro
 
-This is a standalone Astro reproduction for a dev-only stale image warning issue around content collection `image()` fields.
+This is a minimal Astro reproduction for a content collection `image()` bug in `astro dev`.
 
-## Target Behavior
-
-1. start from a clean `.astro/`
-2. run `astro dev`
-3. change `src/content/categories/example.json` from `./images/seed.webp` to `./images/non-existing.jpg`
-4. Astro logs the expected missing-image warning or crash
-5. restore the JSON back to `images/seed.webp`
-6. Astro becomes healthy again, but still appends/logs the stale warning for `images/non-existing.jpg`
+The issue this repo is trying to demonstrate is not just a stale warning. After a JSON entry is changed to a missing image and then restored to a valid image, the dev server does not recover. The API route that reads the collection should start working again, but it stays broken and the terminal still references the old missing path.
 
 ## Setup
-
-Install dependencies inside this folder:
 
 ```bash
 npm install
 ```
 
-## Run
+## Repro
 
-1. Clean generated Astro state:
+1. Start from a clean Astro state:
 
 ```bash
 rm -rf .astro
 ```
 
-2. Start the dev server with log capture:
+2. Start the dev server:
 
 ```bash
-npm run dev 2>&1 | tee .sandbox/dev.log
+npm run dev
 ```
 
-3. In another terminal, run the verifier:
+3. Request `http://localhost:4321/api/probe` and confirm it returns `200` with JSON like:
 
-```bash
-npm run repro
+```json
+{
+  "id": "example",
+  "imageSrc": "/_astro/seed.hash.webp"
+}
 ```
 
-If your dev server is not on the default port or your log file lives elsewhere:
+4. Edit `src/content/categories/example.json` and change:
 
-```bash
-REPRO_LOG_PATH=.sandbox/dev.log \
-PROBE_URL=http://localhost:4324/api/probe \
-VALIDATE_URL=http://localhost:4324/api/validate \
-PAGE_URL=http://localhost:4324/ \
-npm run repro
+```json
+"image": "./images/seed.webp"
 ```
 
-## What The Verifier Does
+to:
 
-- verifies the page, probe route, and validation route are healthy before starting
-- rewrites `example.json` to `./images/non-existing.jpg`
-- forces page and API reads until Astro logs the broken path
-- restores `example.json` to `./images/seed.webp`
-- waits for HTTP behavior to become healthy again
-- continues forcing refreshes and inspects only the newly appended part of the dev log
-- exits `0` only when Astro appends the stale `images/non-existing.jpg` warning after restore
+```json
+"image": "./images/non-existing.jpg"
+```
 
-## Exit Codes
+Then request `/api/probe` again and confirm it fails.
 
-- exit `0`: Astro became healthy again but still logged the stale missing-image path after restore
-- exit `1`: the broken image warning never appeared, Astro never returned to healthy HTTP behavior, or Astro recovered cleanly without stale logging
+5. Restore `src/content/categories/example.json` back to:
 
-## Environment Variables
+```json
+"image": "./images/seed.webp"
+```
 
-- `REPRO_LOG_PATH` default `.sandbox/dev.log`
-- `PAGE_URL` default `http://localhost:4321/`
-- `PROBE_URL` default `http://localhost:4321/api/probe`
-- `VALIDATE_URL` default `http://localhost:4321/api/validate`
-- `REPRO_POLL_INTERVAL_MS` default `250`
-- `REPRO_SETTLE_DELAY_MS` default `150`
-- `REPRO_BROKEN_LOG_TIMEOUT_MS` default `10000`
-- `REPRO_RECOVERY_TIMEOUT_MS` default `10000`
-- `REPRO_STALE_LOG_TIMEOUT_MS` default `5000`
+Then request `/api/probe` again.
+
+## Expected Result
+
+Once the valid image path is restored, `/api/probe` should recover and return `200` again.
+
+## Actual Result
+
+`/api/probe` does not recover after the file is fixed. `astro dev` remains stuck on the earlier missing image state, and the terminal continues referencing `./images/non-existing.jpg` even though the JSON entry has already been restored.
